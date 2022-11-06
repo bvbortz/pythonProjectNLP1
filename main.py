@@ -44,9 +44,10 @@ def unigram(dataset):
 
 def get_probability_unigram(sentence, cnt_dict, length):
     p = 1
-    for word in sentence:
-        cnt = cnt_dict[word]
-        p *= np.log(cnt / length)
+    for token in sentence:
+        if token.is_alpha:
+            cnt = cnt_dict[token.lemma_]
+            p *= np.log(cnt / length)
     return p
 
 
