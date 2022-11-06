@@ -21,6 +21,7 @@ def bigram(doc):
 
 def unigram(dataset):
     cnt = Counter()
+    cnt_dict = dict()
     sentence = list()
     length = 0
     for text in dataset['text']:
@@ -29,12 +30,16 @@ def unigram(dataset):
             if token.is_alpha:
                 # sentence.append(token)
                 length += 1
+                if token.lemma_ in cnt_dict:
+                    cnt_dict[token.lemma_] += 1
+                else:
+                    cnt_dict[token.lemma_] = 1
                 cnt[token.lemma_] += 1
                 if length % 100 == 0:
                     print(length)
     # for word in sentence:
     #     cnt[word] += 1
-    return lambda x: np.log(cnt[x] / length)
+    return lambda x: cnt_dict[x] / length
 
 
 def get_probability_unigram(sentence, lambda_model):
