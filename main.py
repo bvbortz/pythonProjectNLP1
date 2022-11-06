@@ -39,18 +39,19 @@ def unigram(dataset):
                     print(length)
     # for word in sentence:
     #     cnt[word] += 1
-    return lambda x: cnt_dict[x] / length
+    return cnt_dict, length
 
 
-def get_probability_unigram(sentence, lambda_model):
+def get_probability_unigram(sentence, cnt_dict, length):
     p = 1
     for word in sentence:
-        p *= lambda_model(word)
+        cnt = cnt_dict[word]
+        p *= np.log(cnt / length)
     return p
 
 
 nlp = spacy.load("en_core_web_sm")
 dataset = load_dataset('wikitext', 'wikitext-2-raw-v1', split='train')
 dod_test = nlp("i want to make a cake ")
-lambda_model_unigram = unigram(dataset)
-print(get_probability_unigram(nlp("I have a house in the US"), lambda_model_unigram))
+cnt_dict, length = unigram(dataset)
+print(get_probability_unigram(nlp("I have a house in the US"), cnt_dict, length))
