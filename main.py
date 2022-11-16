@@ -151,9 +151,14 @@ def get_probability_interpulation(sentence, cnt_dict_bigram, cnt_dict_tuples, cn
                 num_of_pairs += 1
                 cur_key = ('START', sentence[i].lemma_)
                 if cur_key not in cnt_dict_tuples:
-                    return 0
-                p1 = cnt_dict_unigram[sentence[i].lemma_] / length
-                p2 = cnt_dict_tuples[cur_key] / cnt_dict_bigram['START']
+                    p2 = 0
+                else:
+                    p2 = cnt_dict_tuples[cur_key] / cnt_dict_bigram['START']
+                if sentence[i].lemma_ not in cnt_dict_unigram:
+                    p1 = 0
+                else:
+                    p1 = cnt_dict_unigram[sentence[i].lemma_] / length
+
             else:
                 tmp = i
                 while i < len(sentence) - 1 and not sentence[i + 1].is_alpha:
@@ -163,9 +168,13 @@ def get_probability_interpulation(sentence, cnt_dict_bigram, cnt_dict_tuples, cn
                 num_of_pairs += 1
                 cur_key = (sentence[tmp].lemma_, sentence[i + 1].lemma_)
                 if cur_key not in cnt_dict_tuples:
-                    return 0, num_of_pairs
-                p1 = cnt_dict_unigram[sentence[i + 1].lemma_] / length
-                p2 = cnt_dict_tuples[cur_key] / cnt_dict_bigram[sentence[tmp].lemma_]
+                    p2 = 0
+                else:
+                    p2 = cnt_dict_tuples[cur_key] / cnt_dict_bigram[sentence[tmp].lemma_]
+                if sentence[i + 1].lemma_ not in cnt_dict_unigram:
+                    p1 = 0
+                else:
+                    p1 = cnt_dict_unigram[sentence[i + 1].lemma_] / length
             p *= l1 * p1 + l2 * p2
         i += 1
     return p, num_of_pairs
