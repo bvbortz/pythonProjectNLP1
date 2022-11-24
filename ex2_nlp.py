@@ -6,6 +6,11 @@ import nltk
 import numpy as np
 
 def map_pseudo_words(dataset):
+    """
+    build a dictionary to map low frequency words to their pseudo words
+    :param dataset: the entire dataset
+    :return: the map
+    """
     map_dict = dict()
     cnt_dict = dict()
     for sentence in dataset:
@@ -16,7 +21,6 @@ def map_pseudo_words(dataset):
     for word in cnt_dict:
         if cnt_dict[word] < 5:
             cnt_total += 1
-            # print(word)
             if word[-3:] == 'ing':
                 map_dict[word] = "present_verb"
             elif word[-2:] == "ed":
@@ -83,6 +87,9 @@ def map_pseudo_words(dataset):
 
 
 def clean_tag(tag):
+    """
+    finds + or minus and cuts the string before them
+    """
     minus_find = tag.find('-')
     plus_find = tag.find('+')
     if minus_find != -1 and plus_find != -1:
@@ -92,6 +99,9 @@ def clean_tag(tag):
     return tag
 
 def update_2d_dict(dict, first_key, second_key):
+    """
+    increases by one the given position in the given dictionary. If key doesn't exist sets the value to 1
+    """
     if first_key in dict:
         if second_key in dict[first_key]:
             dict[first_key][second_key] += 1
@@ -101,12 +111,18 @@ def update_2d_dict(dict, first_key, second_key):
         dict[first_key] = {second_key: 1}
 
 def update_1d_dict(dict, key):
+    """
+   increases by one the given position in the given dictionary. If key doesn't exist sets the value to 1
+   """
     if key in dict:
         dict[key] += 1
     else:
         dict[key] = 1
 
 def count_true(predicted_tags, true_tags):
+    """
+    counts the correct tags in the predicted tags array
+    """
     if len(predicted_tags) != len(true_tags):
         print("watch the length")
     cnt = 0
@@ -116,6 +132,9 @@ def count_true(predicted_tags, true_tags):
     return cnt
 
 class Baseline_tagger:
+    """
+    baseline POS tagger. Has a word given tag dictionary
+    """
     def __init__(self):
         self.cnt_dict = dict()
 
@@ -157,6 +176,9 @@ class Baseline_tagger:
                (cnt_correct_unknown + cnt_correct_known) / cnt_total
 
 class bigram_tag_and_prev_tag:
+    """
+    represents the transition probability
+    """
     def __init__(self, map_dict=dict()):
         self.bi_dict = dict()
         self.cnt_dict = dict()
@@ -185,7 +207,14 @@ class bigram_tag_and_prev_tag:
 
 
 class bigram_word_given_tag:
+    """
+    represents the emission probability
+    """
     def __init__(self, delta=0, map_dict=dict()):
+        """
+        :param delta: the delta for add delta smoothing
+        :param map_dict: the dictionary for pseudo words
+        """
         self.bi_dict = dict()
         self.cnt_dict = dict()
         self.all_words = set()
@@ -227,106 +256,93 @@ class bigram_HMM:
         self.tag_given_prev_tag.train(train)
         self.word_given_tag.train(train)
 
-    def get_keys(self, k):
-        if k == 0:
-            return ["START"]
-        else:
-            return self.word_given_tag.cnt_dict.keys()
+    def viterbi(self, sentence, states, all_states, pred_and_true_list):
+        """
+        performs the viterbi algorithm on the given sentence
+        returns the predicted and true labels
+        """
+        words = list()
+        true_tags = list()
+        if len(sentence) <= 1:
+            return -1, -1, -1
+        t1, t2 = self.viterbi_update_table(all_states, sentence, states, true_tags, words)
+        predicted_tags = self.viterbi_get_predicted_tags(sentence, states, t1, t2)
+        pred_and_true_list.append((predicted_tags, true_tags))
+        return predicted_tags, true_tags, words
 
-    def predict(self, test):
-        cnt = 0
-        cnt_total = 0
-        cnt_accurate = 0
-        for sentence in test:
-            pi_dict = list()
-            bp_dict = list()
-            pi_dict.append({"START": 1})
-            bp_dict.append({"START": 1})
-            true_tags = list()
-            for i, (word, tag) in enumerate(sentence):
-                tag = clean_tag(tag)
-                true_tags.append(tag)
-                pi_dict.append(dict())
-                bp_dict.append(dict())
-                for v in self.get_keys(i+1):
-                    # if word not in self.baseline.cnt_dict:
-                    #     pi_dict[i + 1][v] = 1
-                    #     bp_dict[i + 1][v] = "NN"
-                    max_num = -1
-                    for w in self.get_keys(i):
-                        cur_val = pi_dict[i][w] * self.tag_given_prev_tag.bigram_prob(v, w) * \
-                            self.word_given_tag.bigram_prob(word, v)
-                        if cur_val > max_num:
-                            max_num = cur_val
-                            max_arg = w
-                    pi_dict[i+1][v] = max_num
-                    bp_dict[i+1][v] = max_arg
-            if len(sentence) <= 1:
-                continue
-            predicted_tags = [""]*len(sentence)
-            max_num = -1
-            for v in self.get_keys(len(sentence)):
-                cur_val = pi_dict[len(sentence)-1][v] * self.tag_given_prev_tag.bigram_prob("STOP", v)
-                if cur_val > max_num:
-                    max_num = cur_val
-                    max_arg = v
-            predicted_tags[len(sentence)-1] = max_arg
-            for k in range(len(sentence)-2, -1, -1):
-                predicted_tags[k] = bp_dict[k+1][predicted_tags[k+1]]
-            print(f"predicted tags are {predicted_tags}")
-            print(f"true tags are {true_tags}")
-            print(f"cnt is {cnt}")
-            cnt_accurate += count_true(predicted_tags[1:], true_tags)
-            cnt_total += len(true_tags)
-            cnt += 1
-        return cnt_accurate / cnt_total
-    def wiki_predict(self, test):
-        all_states = list(self.get_keys(2))
-        states = list(self.get_keys(2))
+    def viterbi_get_predicted_tags(self, sentence, states, t1, t2):
+        """
+        calculates backwards the predicted tags based on the full tables
+        """
+        z = np.zeros(len(sentence))
+        predicted_tags = [""] * len(sentence)
+        max_val = -1
+        for i in range(len(t1[:, len(sentence)])):
+            cur_val = t1[i, len(sentence)] * self.tag_given_prev_tag.bigram_prob("STOP", states[i])
+            if cur_val > max_val:
+                max_val = cur_val
+                max_arg = i
+        z[len(sentence) - 1] = max_arg
+        predicted_tags[len(sentence) - 1] = states[int(z[len(sentence) - 1])]
+        for i in range(len(sentence) - 1, 0, -1):
+            z[i - 1] = t2[int(z[i]), i + 1]
+            predicted_tags[i - 1] = states[int(z[i - 1])]
+        return predicted_tags
+
+    def viterbi_update_table(self, all_states, sentence, states, true_tags, words):
+        """
+        fills the viterbi's tables
+        """
+        t1 = np.zeros((len(states), len(sentence) + 1))
+        t2 = np.zeros((len(states), len(sentence) + 1))
+        t1[len(states) - 1, 0] = 1
+        for i, (word, tag) in enumerate(sentence):
+            tag = clean_tag(tag)
+            if tag not in self.word_given_tag.cnt_dict:
+                all_states.append(tag)
+            if word in self.map_dict:
+                word = self.map_dict[word]
+            words.append(word)
+            tag = clean_tag(tag)
+            true_tags.append(tag)
+            for j in range(len(states)):
+                max_val = -1
+                for k in range(len(states)):
+                    cur_val = t1[k, i] * self.tag_given_prev_tag.bigram_prob(states[j], states[k])
+                    if cur_val > max_val:
+                        max_val = cur_val
+                        max_arg = k
+                t1[j, i + 1] = self.word_given_tag.bigram_prob(word, states[j]) * max_val
+                t2[j, i + 1] = max_arg
+        return t1, t2
+
+    def accuracy(self, test):
+        all_states = list(self.word_given_tag.cnt_dict.keys())
+        states = list(self.word_given_tag.cnt_dict.keys())
         pred_and_true_list = list()
         states.append("START")
+        all_states.append("START")
         cnt_correct_known = 0
         cnt_correct_unknown = 0
         cnt_known = 0
         cnt_total = 0
         for sentence in test:
-            words = list()
-            true_tags = list()
-            if len(sentence) <= 1:
+            predicted_tags, true_tags, words = self.viterbi(sentence, states, all_states, pred_and_true_list)
+            if predicted_tags == -1:
                 continue
-            t1 = np.zeros((len(states), len(sentence)+1))
-            t2 = np.zeros((len(states), len(sentence) + 1))
-            t1[len(states)-1, 0] = 1
-            for i, (word, tag) in enumerate(sentence):
-                tag = clean_tag(tag)
-                if tag not in self.word_given_tag.cnt_dict:
-                    all_states.append(tag)
-                if word in self.map_dict:
-                    word = self.map_dict[word]
-                words.append(word)
-                tag = clean_tag(tag)
-                true_tags.append(tag)
-                max_val = -1
-                for j in range(len(states)):
-                    for k in range(len(states)):
-                        cur_val = t1[k, i] * self.tag_given_prev_tag.bigram_prob(states[j], states[k])
-                        if cur_val > max_val:
-                            max_val = cur_val
-                            max_arg = k
-                    t1[j, i+1] = self.word_given_tag.bigram_prob(word, states[j]) * max_val
-                    t2[j, i+1] = max_arg
-            z = np.zeros(len(sentence))
-            predicted_tags = [""] * len(sentence)
-            z[len(sentence)-1] = np.argmax(t1[:, len(sentence)])
-            predicted_tags[len(sentence)-1] = states[int(z[len(sentence)-1])]
-            for i in range(len(sentence)-1, 0, -1):
-                z[i-1] = t2[int(z[i]), i+1]
-                predicted_tags[i-1] = states[int(z[i-1])]
-            pred_and_true_list.append((predicted_tags, true_tags))
             cnt_correct_known, cnt_correct_unknown, cnt_known, cnt_total = self.count_true(predicted_tags, true_tags,
                                                                                            words, cnt_correct_known,
                                                                                            cnt_correct_unknown,
                                                                                            cnt_known, cnt_total)
+        self.build_confusion_matrix(all_states, pred_and_true_list)
+        return cnt_correct_known / cnt_known, \
+               cnt_correct_unknown / (cnt_total - cnt_known), \
+               (cnt_correct_unknown + cnt_correct_known) / cnt_total
+
+    def build_confusion_matrix(self, all_states, pred_and_true_list):
+        """
+        get list of states and list of predicted and true tags and calculates the confusion matrix
+        """
         self.confusion_mat = np.zeros((len(all_states), len(all_states)))
         # print(all_states)
         for predicted_tags, true_tags in pred_and_true_list:
@@ -336,14 +352,12 @@ class bigram_HMM:
                 self.confusion_mat[true_index, predicted_index] += 1
             # print(f"predicted tags are {predicted_tags}")
             # print(f"true tags are {true_tags}")
-
         # print(self.confusion_mat)
-        return cnt_correct_known / cnt_known, \
-               cnt_correct_unknown / (cnt_total - cnt_known), \
-               (cnt_correct_unknown + cnt_correct_known) / cnt_total
 
     def count_true(self, predicted_tags, true_tags, words, cnt_correct_known, cnt_correct_unknown, cnt_known, cnt_total):
-
+        """
+        updates the given counters based on the given true and predicted tags
+        """
         for i in range(min(len(predicted_tags), len(true_tags))):
             cnt_total += 1
             if words[i] not in self.baseline.cnt_dict:
@@ -357,7 +371,9 @@ class bigram_HMM:
 
 
 
-
+def to_error_rate(result):
+    print(f"the known error rate is {1-result[0]}, the unknown error rate is {1-result[1]} and the total error rate "
+          f"is {1-result[2]}")
                     
 
 
@@ -370,12 +386,20 @@ baseline = Baseline_tagger()
 baseline.train(train)
 bs = bigram_HMM()
 bs.train(train)
-print(baseline.accuracy(test))
-print(bs.wiki_predict(test))
+print('b')
+to_error_rate(baseline.accuracy(test))
+print('c')
+to_error_rate(bs.accuracy(test))
 add_one_bs = bigram_HMM(1)
 add_one_bs.train(train)
-print(add_one_bs.wiki_predict(test))
+print('d')
+to_error_rate(add_one_bs.accuracy(test))
 map_dict = map_pseudo_words(news_text)
-pseudo_word_HMM = bigram_HMM(1, map_dict)
+pseudo_word_add_one_HMM = bigram_HMM(1, map_dict)
+pseudo_word_add_one_HMM.train(train)
+pseudo_word_HMM = bigram_HMM(map_dict=map_dict)
 pseudo_word_HMM.train(train)
-print(pseudo_word_HMM.wiki_predict(test))
+print('e ii')
+to_error_rate(pseudo_word_HMM.accuracy(test))
+print('e iii')
+to_error_rate(pseudo_word_add_one_HMM.accuracy(test))
