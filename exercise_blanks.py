@@ -412,11 +412,14 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
     """
     accuracy = list()
     train_loss = list()
-    validation_loss = 0.0
-    optimizer = optim.SGD(model.parameters(), lr=lr, weight_decay=weight_decay)
+    criterion = nn.BCEWithLogitsLoss()
+    optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     for epoch in range(n_epochs):
-        acc, loss = train_epoch(model, data_manager,)
-    return
+        acc, loss = train_epoch(model, data_manager.get_torch_iterator(data_subset=TRAIN), optimizer, criterion)
+        accuracy.append(acc)
+        train_loss.append(loss)
+    val_acc, val_loss = evaluate(model, data_manager.get_torch_iterator(data_subset=VAL), criterion)
+    return val_acc, val_loss, accuracy, train_loss
 
 
 def train_log_linear_with_one_hot():
