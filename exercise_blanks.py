@@ -313,7 +313,7 @@ class LogLinear(nn.Module):
         return
 
     def forward(self, x):
-        x = torch.flatten(x, 1)
+        x = torch.flatten(x, 1).float()
         return self.fc(x)
 
     def predict(self, x):
@@ -356,7 +356,9 @@ def train_epoch(model, data_iterator, optimizer, criterion):
         inputs, labels = data
         optimizer.zero_grad()
 
-        outputs = model(inputs.float()) ## TODO check how to get a betch in one time
+        # outputs = model(inputs.float())
+        outputs = model(inputs)
+        outputs = outputs.reshape(labels.shape) #TODO check that it does not destroy the grad
         accuracy += binary_accuracy(outputs, labels)
 
         loss = criterion(outputs, labels)
@@ -383,6 +385,7 @@ def evaluate(model, data_iterator, criterion):
         inputs, labels = data  ## TODO  check that the data set retuns things in this way
 
         outputs = model(inputs)
+        outputs = outputs.reshape(labels.shape)
         accuracy += binary_accuracy(outputs, labels)
         loss = criterion(outputs, labels)
         loss.backward()
@@ -427,10 +430,12 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
     criterion = nn.BCEWithLogitsLoss()
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     for epoch in range(n_epochs):
+        print(f"starting the {epoch+1}")
         acc, loss = train_epoch(model, data_manager.get_torch_iterator(data_subset=TRAIN), optimizer, criterion)
         accuracy.append(acc)
         train_loss.append(loss)
         val_acc, val_loss = evaluate(model, data_manager.get_torch_iterator(data_subset=VAL), criterion)
+        print(f"finshed the {epoch+1} val_acc = {val_acc}")
         val_accuracy.append(val_acc)
         val_train_loss.append(val_loss)
     return val_accuracy, val_train_loss, accuracy, train_loss
@@ -464,7 +469,7 @@ def train_lstm_with_w2v():
 if __name__ == '__main__':
     model, val_acc, val_loss, train_accuracy, train_loss = train_log_linear_with_one_hot()
     fig = go.Figure([go.Scatter(name="Validetion Loss", y=val_loss),
-                     go.Scatter(name="Train Loss", y= train_loss)])
+                     go.Scatter(name="Train Loss", y=train_loss)])
     fig.show()
     fig2 = go.Figure([go.Scatter(name="Validetion acc", y=val_acc),
                      go.Scatter(name="Train acc", y=train_accuracy)])
