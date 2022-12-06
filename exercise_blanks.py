@@ -115,7 +115,11 @@ def get_w2v_average(sent, word_to_vec, embedding_dim):
     :param embedding_dim: the dimension of the word embedding vectors
     :return The average embedding vector as numpy ndarray.
     """
-    return
+    new_emb = word_to_vec[sent[0]]
+    for i in range(1, len(sent)):
+        new_emb += word_to_vec[sent[i]]
+    new_emb /= len(sent)
+    return new_emb
 
 
 def get_one_hot(size, ind):
@@ -125,7 +129,9 @@ def get_one_hot(size, ind):
     :param ind: the entry index to turn to 1
     :return: numpy ndarray which represents the one-hot vector
     """
-    return
+    one_hot = np.zeros(size)
+    one_hot[ind] = 1
+    return one_hot
 
 
 def average_one_hots(sent, word_to_ind):
@@ -146,7 +152,15 @@ def get_word_to_ind(words_list):
     :param words_list: a list of words
     :return: the dictionary mapping words to the index
     """
-    return
+    word_set = set()
+    word_to_index = dict()
+    cur_index = 0
+    for word in words_list:
+        if word not in word_set:
+            word_set.add(word)
+            word_to_index[word] = cur_index
+            cur_index += 1
+    return word_to_index
 
 
 def sentence_to_embedding(sent, word_to_vec, seq_len, embedding_dim=300):
