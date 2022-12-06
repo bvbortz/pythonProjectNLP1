@@ -313,6 +313,7 @@ class LogLinear(nn.Module):
         return
 
     def forward(self, x):
+        x = torch.flatten(x, 1)
         return self.fc(x)
 
     def predict(self, x):
@@ -334,7 +335,9 @@ def binary_accuracy(preds, y):
     # for i in range(len(preds)):
     #     if np.round(preds[i]) == y[i]:
     #         true_cnt += 1
-    return np.sum(np.round(preds) == y) / len(preds)
+    # preds = preds.detach().numpy()
+    preds = preds.reshape(y.shape)
+    return torch.sum(torch.round(preds) == y).float() / len(preds)
 
 
 def train_epoch(model, data_iterator, optimizer, criterion):
@@ -353,8 +356,9 @@ def train_epoch(model, data_iterator, optimizer, criterion):
         inputs, labels = data
         optimizer.zero_grad()
 
-        outputs = model(inputs) ## TODO check how to get a betch in one time
+        outputs = model(inputs.float()) ## TODO check how to get a betch in one time
         accuracy += binary_accuracy(outputs, labels)
+
         loss = criterion(outputs, labels)
         loss.backward()
         optimizer.step()
