@@ -336,7 +336,7 @@ def binary_accuracy(preds, y):
     #     if np.round(preds[i]) == y[i]:
     #         true_cnt += 1
     # preds = preds.detach().numpy()
-    preds = preds.reshape(y.shape)
+    y = y.reshape(preds.shape)
     return torch.sum(torch.round(preds) == y).float() / len(preds)
 
 
@@ -358,7 +358,8 @@ def train_epoch(model, data_iterator, optimizer, criterion):
 
         # outputs = model(inputs.float())
         outputs = model(inputs)
-        outputs = outputs.reshape(labels.shape) #TODO check that it does not destroy the grad
+        # outputs = outputs.reshape(labels.shape) #TODO check that it does not destroy the grad
+        labels = labels.reshape(outputs.shape)
         accuracy += binary_accuracy(outputs, labels)
 
         loss = criterion(outputs, labels)
@@ -385,7 +386,7 @@ def evaluate(model, data_iterator, criterion):
         inputs, labels = data  ## TODO  check that the data set retuns things in this way
 
         outputs = model(inputs)
-        outputs = outputs.reshape(labels.shape)
+        labels = labels.reshape(outputs.shape)
         accuracy += binary_accuracy(outputs, labels)
         loss = criterion(outputs, labels)
         loss.backward()
@@ -430,12 +431,13 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
     criterion = nn.BCEWithLogitsLoss()
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     for epoch in range(n_epochs):
-        print(f"starting the {epoch+1}")
+        print(f"starting the {epoch+1} epoch")
         acc, loss = train_epoch(model, data_manager.get_torch_iterator(data_subset=TRAIN), optimizer, criterion)
         accuracy.append(acc)
         train_loss.append(loss)
+        print(f"finshed the {epoch + 1} epoch train_acc = {acc} , train_loss = {loss}")
         val_acc, val_loss = evaluate(model, data_manager.get_torch_iterator(data_subset=VAL), criterion)
-        print(f"finshed the {epoch+1} val_acc = {val_acc}")
+        print(f"finshed the {epoch+1} epoch val_acc = {val_acc} , val_loss = {val_loss}")
         val_accuracy.append(val_acc)
         val_train_loss.append(val_loss)
     return val_accuracy, val_train_loss, accuracy, train_loss
