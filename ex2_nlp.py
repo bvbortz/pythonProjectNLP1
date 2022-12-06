@@ -236,11 +236,11 @@ class bigram_word_given_tag:
             word = self.map_dict[word]
         if tag not in self.bi_dict:
             return 0
-        if word not in self.all_words and tag == "NN":
+        if word not in self.all_words and tag == "NN" and self.delta == 0:
             return 1
         if word not in self.bi_dict[tag]:
-            return 0
-        return (self.bi_dict[tag][word] + self.delta) / (self.cnt_dict[tag] + len(self.all_words))
+            return self.delta / (self.cnt_dict[tag] + self.delta * len(self.all_words))
+        return (self.bi_dict[tag][word] + self.delta) / (self.cnt_dict[tag] + self.delta * len(self.all_words))
 
 
 
@@ -344,7 +344,7 @@ class bigram_HMM:
         get list of states and list of predicted and true tags and calculates the confusion matrix
         """
         self.confusion_mat = np.zeros((len(all_states), len(all_states)))
-        # print(all_states)
+        print(all_states)
         for predicted_tags, true_tags in pred_and_true_list:
             for i in range(len(predicted_tags)):
                 predicted_index = all_states.index(predicted_tags[i])
@@ -352,7 +352,7 @@ class bigram_HMM:
                 self.confusion_mat[true_index, predicted_index] += 1
             # print(f"predicted tags are {predicted_tags}")
             # print(f"true tags are {true_tags}")
-        # print(self.confusion_mat)
+        print(self.confusion_mat)
 
     def count_true(self, predicted_tags, true_tags, words, cnt_correct_known, cnt_correct_unknown, cnt_known, cnt_total):
         """

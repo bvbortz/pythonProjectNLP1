@@ -1,0 +1,9 @@
+the ex2_nlp.py file contains:
+Baseline_tagger class which is the most likely tag baseline
+bigram_tag_and_prev_tag class which is the transition probability
+bigram_word_given_tag class which is the emission probability
+bigram_HMM class which is the bigram HMM tagger
+functions:
+bigram_prob used to get the probability in bigram_tag_and_prev_tag and bigram_word_given_tag
+train- used to train the model
+accuracy used to report the accuracy on the test
