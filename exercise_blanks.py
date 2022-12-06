@@ -426,6 +426,13 @@ def train_log_linear_with_one_hot():
     """
     Here comes your code for training and evaluation of the log linear model with one hot representation.
     """
+    data_manager = DataManager()
+    model = LogLinear(data_manager.get_input_shape())
+    lr_rate = np.arange(0.02, 0.1, 0.02)
+    weight_decay_rate = np.arange(0, 0.4, 0.1)
+    for lr in lr_rate:
+        for weight_decay in weight_decay_rate:
+            val_acc, val_loss, accuracy, train_loss = train_model(model, data_manager, 4, lr, weight_decay)
     return
 
 
