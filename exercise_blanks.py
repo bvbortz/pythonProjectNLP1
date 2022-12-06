@@ -306,13 +306,15 @@ class LogLinear(nn.Module):
     general class for the log-linear models for sentiment analysis.
     """
     def __init__(self, embedding_dim):
+        self.embedding_dim = embedding_dim
+        self.fc = torch.nn.Linear(embedding_dim, 1)
         return
 
     def forward(self, x):
-        return
+        return self.fc(x)
 
     def predict(self, x):
-        return
+        return F.sigmoid(self.forward(x))
 
 
 # ------------------------- training functions -------------
@@ -367,6 +369,7 @@ def get_predictions_for_data(model, data_iter):
     :param data_iter: torch iterator as given by the DataManager
     :return:
     """
+
     return
 
 
