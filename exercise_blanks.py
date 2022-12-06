@@ -9,6 +9,7 @@ import operator
 import data_loader
 import pickle
 import tqdm
+import plotly.graph_objects as go
 
 # ------------------------------------------- Constants ----------------------------------------
 
@@ -306,8 +307,9 @@ class LogLinear(nn.Module):
     general class for the log-linear models for sentiment analysis.
     """
     def __init__(self, embedding_dim):
+        super(LogLinear, self).__init__()
         self.embedding_dim = embedding_dim
-        self.fc = torch.nn.Linear(embedding_dim, 1)
+        self.fc = torch.nn.Linear(embedding_dim[0], 1)
         return
 
     def forward(self, x):
@@ -348,10 +350,10 @@ def train_epoch(model, data_iterator, optimizer, criterion):
     running_loss = 0.0
     data_iterator_len = 0
     for data in data_iterator:
-        inputs, labels = data ## TODO  check that the data set retuns things in this way
+        inputs, labels = data
         optimizer.zero_grad()
 
-        outputs = model(inputs)
+        outputs = model(inputs) ## TODO check how to get a betch in one time
         accuracy += binary_accuracy(outputs, labels)
         loss = criterion(outputs, labels)
         loss.backward()
@@ -396,8 +398,12 @@ def get_predictions_for_data(model, data_iter):
     :param data_iter: torch iterator as given by the DataManager
     :return:
     """
-
-    return
+    predictions = list()
+    for data in data_iter:
+        inputs, labels = data
+        outputs = model.predict(inputs)
+        predictions.append(outputs)
+    return predictions
 
 
 def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
@@ -412,28 +418,28 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
     """
     accuracy = list()
     train_loss = list()
+    val_accuracy = list()
+    val_train_loss = list()
     criterion = nn.BCEWithLogitsLoss()
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     for epoch in range(n_epochs):
         acc, loss = train_epoch(model, data_manager.get_torch_iterator(data_subset=TRAIN), optimizer, criterion)
         accuracy.append(acc)
         train_loss.append(loss)
-    val_acc, val_loss = evaluate(model, data_manager.get_torch_iterator(data_subset=VAL), criterion)
-    return val_acc, val_loss, accuracy, train_loss
+        val_acc, val_loss = evaluate(model, data_manager.get_torch_iterator(data_subset=VAL), criterion)
+        val_accuracy.append(val_acc)
+        val_train_loss.append(val_loss)
+    return val_accuracy, val_train_loss, accuracy, train_loss
 
 
 def train_log_linear_with_one_hot():
     """
     Here comes your code for training and evaluation of the log linear model with one hot representation.
     """
-    data_manager = DataManager()
+    data_manager = DataManager(batch_size=64)
     model = LogLinear(data_manager.get_input_shape())
-    lr_rate = np.arange(0.02, 0.1, 0.02)
-    weight_decay_rate = np.arange(0, 0.4, 0.1)
-    for lr in lr_rate:
-        for weight_decay in weight_decay_rate:
-            val_acc, val_loss, accuracy, train_loss = train_model(model, data_manager, 4, lr, weight_decay)
-    return
+    val_acc, val_loss, train_accuracy, train_loss = train_model(model, data_manager, 20, lr=0.01, weight_decay=0.001)
+    return model, val_acc, val_loss, train_accuracy, train_loss
 
 
 def train_log_linear_with_w2v():
@@ -452,6 +458,12 @@ def train_lstm_with_w2v():
 
 
 if __name__ == '__main__':
-    train_log_linear_with_one_hot()
+    model, val_acc, val_loss, train_accuracy, train_loss = train_log_linear_with_one_hot()
+    fig = go.Figure([go.Scatter(name="Validetion Loss", y=val_loss),
+                     go.Scatter(name="Train Loss", y= train_loss)])
+    fig.show()
+    fig2 = go.Figure([go.Scatter(name="Validetion acc", y=val_acc),
+                     go.Scatter(name="Train acc", y=train_accuracy)])
+    fig2.show()
     # train_log_linear_with_w2v()
     # train_lstm_with_w2v()
