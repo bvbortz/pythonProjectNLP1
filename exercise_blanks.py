@@ -344,8 +344,22 @@ def train_epoch(model, data_iterator, optimizer, criterion):
     :param optimizer: the optimizer object for the training process.
     :param criterion: the criterion object for the training process.
     """
+    accuracy = 0.0
+    running_loss = 0.0
+    data_iterator_len = 0
+    for data in data_iterator:
+        inputs, labels = data ## TODO  check that the data set retuns things in this way
+        optimizer.zero_grad()
 
-    return
+        outputs = model(inputs)
+        accuracy += binary_accuracy(outputs, labels)
+        loss = criterion(outputs, labels)
+        loss.backward()
+        optimizer.step()
+
+        running_loss += loss.item()
+        data_iterator_len += 1
+    return accuracy/data_iterator_len, running_loss
 
 
 def evaluate(model, data_iterator, criterion):
@@ -356,7 +370,20 @@ def evaluate(model, data_iterator, criterion):
     :param criterion: the loss criterion used for evaluation
     :return: tuple of (average loss over all examples, average accuracy over all examples)
     """
-    return
+    accuracy = 0.0
+    running_loss = 0.0
+    data_iterator_len = 0
+    for data in data_iterator:
+        inputs, labels = data  ## TODO  check that the data set retuns things in this way
+
+        outputs = model(inputs)
+        accuracy += binary_accuracy(outputs, labels)
+        loss = criterion(outputs, labels)
+        loss.backward()
+
+        running_loss += loss.item()
+        data_iterator_len += 1
+    return accuracy / data_iterator_len, running_loss
 
 
 def get_predictions_for_data(model, data_iter):
@@ -383,6 +410,12 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
     :param lr: learning rate to be used for optimization
     :param weight_decay: parameter for l2 regularization
     """
+    accuracy = list()
+    train_loss = list()
+    validation_loss = 0.0
+    optimizer = optim.SGD(model.parameters(), lr=lr, weight_decay=weight_decay)
+    for epoch in range(n_epochs):
+        acc, loss = train_epoch(model, data_manager,)
     return
 
 
