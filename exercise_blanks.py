@@ -115,10 +115,10 @@ def get_w2v_average(sent, word_to_vec, embedding_dim):
     :param embedding_dim: the dimension of the word embedding vectors
     :return The average embedding vector as numpy ndarray.
     """
-    new_emb = word_to_vec[sent[0]]
-    for i in range(1, len(sent)):
-        new_emb += word_to_vec[sent[i]]
-    new_emb /= len(sent)
+    new_emb = word_to_vec[sent.text[0]]
+    for i in range(1, len(sent.text)):
+        new_emb += word_to_vec[sent.text[i]]
+    new_emb /= len(sent.text)
     return new_emb
 
 
@@ -142,7 +142,12 @@ def average_one_hots(sent, word_to_ind):
     :param word_to_ind: a mapping between words to indices
     :return:
     """
-    return
+    vec_size = len(word_to_ind)
+    average_vec = np.zeros(vec_size)
+    for word in sent.text:
+        average_vec += get_one_hot(vec_size, word_to_ind[word])
+    average_vec = average_vec / vec_size
+    return average_vec
 
 
 def get_word_to_ind(words_list):
@@ -315,14 +320,17 @@ class LogLinear(nn.Module):
 
 def binary_accuracy(preds, y):
     """
-    This method returns tha accuracy of the predictions, relative to the labels.
+    This method returns the accuracy of the predictions, relative to the labels.
     You can choose whether to use numpy arrays or tensors here.
     :param preds: a vector of predictions
     :param y: a vector of true labels
     :return: scalar value - (<number of accurate predictions> / <number of examples>)
     """
-
-    return
+    # true_cnt = 0
+    # for i in range(len(preds)):
+    #     if np.round(preds[i]) == y[i]:
+    #         true_cnt += 1
+    return np.sum(np.round(preds) == y) / len(preds)
 
 
 def train_epoch(model, data_iterator, optimizer, criterion):
