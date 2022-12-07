@@ -135,7 +135,7 @@ def get_one_hot(size, ind):
     return one_hot
 
 
-def average_one_hots(sent, word_to_ind):
+def average_one_hots(sent, word_to_ind): # TODO make sure this function works
     """
     this method gets a sentence, and a mapping between words to indices, and returns the average
     one-hot embedding of the tokens in the sentence.
@@ -147,7 +147,7 @@ def average_one_hots(sent, word_to_ind):
     average_vec = np.zeros(vec_size)
     for word in sent.text:
         average_vec += get_one_hot(vec_size, word_to_ind[word])
-    average_vec = average_vec / vec_size
+    average_vec = average_vec / len(sent.text)
     return average_vec
 
 
@@ -313,8 +313,11 @@ class LogLinear(nn.Module):
         return
 
     def forward(self, x):
-        x = torch.flatten(x, 1).float()
-        return self.fc(x)
+        flat_x = torch.flatten(x, 1).float()
+        # count = torch.numel(flat_x[flat_x > 0.5])
+        # if count > 0:
+        #     print(count)
+        return self.fc(flat_x)
 
     def predict(self, x):
         return F.sigmoid(self.forward(x))
@@ -358,7 +361,7 @@ def train_epoch(model, data_iterator, optimizer, criterion):
 
         # outputs = model(inputs.float())
         outputs = model(inputs)
-        # outputs = outputs.reshape(labels.shape) #TODO check that it does not destroy the grad
+        # outputs = outputs.reshape(labels.shape)
         labels = labels.reshape(outputs.shape)
         accuracy += binary_accuracy(outputs, labels)
 
@@ -368,7 +371,7 @@ def train_epoch(model, data_iterator, optimizer, criterion):
 
         running_loss += loss.item()
         data_iterator_len += 1
-    return accuracy/data_iterator_len, running_loss
+    return accuracy/data_iterator_len, running_loss / data_iterator_len
 
 
 def evaluate(model, data_iterator, criterion):
@@ -383,7 +386,7 @@ def evaluate(model, data_iterator, criterion):
     running_loss = 0.0
     data_iterator_len = 0
     for data in data_iterator:
-        inputs, labels = data  ## TODO  check that the data set retuns things in this way
+        inputs, labels = data
 
         outputs = model(inputs)
         labels = labels.reshape(outputs.shape)
@@ -393,7 +396,7 @@ def evaluate(model, data_iterator, criterion):
 
         running_loss += loss.item()
         data_iterator_len += 1
-    return accuracy / data_iterator_len, running_loss
+    return accuracy / data_iterator_len, running_loss / data_iterator_len
 
 
 def get_predictions_for_data(model, data_iter):
