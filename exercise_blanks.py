@@ -83,19 +83,21 @@ def load_word2vec():
     """
     import gensim.downloader as api
     wv_from_bin = api.load("word2vec-google-news-300")
-    vocab = list(wv_from_bin.vocab.keys())
-    print(wv_from_bin.vocab[vocab[0]])
+    # vocab = list(wv_from_bin.vocab.keys())
+    vocab = list(wv_from_bin.index_to_key)
+    # print(wv_from_bin.vocab[vocab[0]])
     print("Loaded vocab size %i" % len(vocab))
     return wv_from_bin
 
 
-def create_or_load_slim_w2v(words_list, cache_w2v=False):
+def create_or_load_slim_w2v(words_list, cache_w2v=True):#TODO explain in readme changed the defualt from Flase to True
     """
     returns word2vec dict only for words which appear in the dataset.
     :param words_list: list of words to use for the w2v dict
     :param cache_w2v: whether to save locally the small w2v dictionary
     :return: dictionary which maps the known words to their vectors
     """
+    print("i got to create_or_load_slim_w2v")
     w2v_path = "w2v_dict.pkl"
     if not os.path.exists(w2v_path):
         full_w2v = load_word2vec()
@@ -107,7 +109,7 @@ def create_or_load_slim_w2v(words_list, cache_w2v=False):
     return w2v_emb_dict
 
 
-def get_w2v_average(sent, word_to_vec, embedding_dim):
+def get_w2v_average(sent, word_to_vec, embedding_dim): # TODO make sure this function works
     """
     This method gets a sentence and returns the average word embedding of the words consisting
     the sentence.
@@ -116,9 +118,10 @@ def get_w2v_average(sent, word_to_vec, embedding_dim):
     :param embedding_dim: the dimension of the word embedding vectors
     :return The average embedding vector as numpy ndarray.
     """
-    new_emb = word_to_vec[sent.text[0]]
-    for i in range(1, len(sent.text)):
-        new_emb += word_to_vec[sent.text[i]]
+    new_emb = np.zeros(embedding_dim)
+    for i in range(len(sent.text)):
+        if sent.text[i] in word_to_vec:
+            new_emb += word_to_vec[sent.text[i]]
     new_emb /= len(sent.text)
     return new_emb
 
@@ -135,7 +138,7 @@ def get_one_hot(size, ind):
     return one_hot
 
 
-def average_one_hots(sent, word_to_ind): # TODO make sure this function works
+def average_one_hots(sent, word_to_ind):
     """
     this method gets a sentence, and a mapping between words to indices, and returns the average
     one-hot embedding of the tokens in the sentence.
@@ -461,7 +464,11 @@ def train_log_linear_with_w2v():
     Here comes your code for training and evaluation of the log linear model with word embeddings
     representation.
     """
-    return
+    data_manager = DataManager(data_type=W2V_AVERAGE, batch_size=64, embedding_dim=300)
+    model = LogLinear(data_manager.get_input_shape())
+    val_acc, val_loss, train_accuracy, train_loss = train_model(model, data_manager, 20, lr=0.01, weight_decay=0.001)
+    return model, val_acc, val_loss, train_accuracy, train_loss
+
 
 
 def train_lstm_with_w2v():
@@ -470,9 +477,14 @@ def train_lstm_with_w2v():
     """
     return
 
+def run_part(part):
+    if part == 5:
+        return train_log_linear_with_one_hot()
+    if part == 7:
+        return train_log_linear_with_w2v()
 
 if __name__ == '__main__':
-    model, val_acc, val_loss, train_accuracy, train_loss = train_log_linear_with_one_hot()
+    model, val_acc, val_loss, train_accuracy, train_loss = run_part(7)
     fig = go.Figure([go.Scatter(name="Validetion Loss", y=val_loss),
                      go.Scatter(name="Train Loss", y=train_loss)])
     fig.show()
