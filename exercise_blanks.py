@@ -312,16 +312,15 @@ class LSTM(nn.Module):
                             hidden_dim,
                             num_layers=n_layers,
                             bidirectional=True,
-                            batch_first=True)
-        self.dropout = nn.Dropout(dropout)
+                            batch_first=True,
+                            dropout=dropout)
         self.fc = nn.Linear(hidden_dim * 2, 1)
     def forward(self, text):
         batch_size = text.shape[0]
         h_0, c_0 = self.init_hidden(batch_size)
         # x = self.lstm(text, (2 * self.num_layers, self.hidden_dim))
         x, (h_n, c_n) = self.lstm(text.float(), (h_0, c_0))
-        dropped = self.dropout(x[:, -1, :])
-        output = self.fc(dropped)
+        output = self.fc(x[:, -1, :])
         return output
 
     def init_hidden(self, batch_size):
@@ -335,7 +334,7 @@ class LSTM(nn.Module):
         # x = self.lstm(text, (2 * self.num_layers, self.hidden_dim))
         x, (h_n, c_n) = self.lstm(text.float(), (h_0, c_0))
         output = self.fc(x[:, -1, :])
-        return F.sigmoid(output)
+        return torch.sigmoid(output)
 
 
 class LogLinear(nn.Module):
@@ -353,7 +352,7 @@ class LogLinear(nn.Module):
         return self.fc(flat_x)
 
     def predict(self, x):
-        return F.sigmoid(self.forward(x))
+        return torch.sigmoid(self.forward(x))
 
 
 # ------------------------- training functions -------------
@@ -415,21 +414,22 @@ def evaluate(model, data_iterator, criterion):
     :param criterion: the loss criterion used for evaluation
     :return: tuple of (average loss over all examples, average accuracy over all examples)
     """
-    accuracy = 0.0
-    running_loss = 0.0
-    data_iterator_len = 0
-    for data in data_iterator:
-        inputs, labels = data
+    with torch.no_grad():
+        accuracy = 0.0
+        running_loss = 0.0
+        data_iterator_len = 0
+        for data in data_iterator:
+            inputs, labels = data
 
-        outputs = model(inputs)
-        labels = labels.reshape(outputs.shape)
-        accuracy += binary_accuracy(outputs, labels)
-        loss = criterion(outputs, labels)
-        # loss.backward()
+            outputs = model.predict(inputs)
+            labels = labels.reshape(outputs.shape)
+            accuracy += binary_accuracy(outputs, labels)
+            loss = criterion(outputs, labels)
+            # loss.backward()
 
-        running_loss += loss.item()
-        data_iterator_len += 1
-    return accuracy / data_iterator_len, running_loss / data_iterator_len
+            running_loss += loss.item()
+            data_iterator_len += 1
+        return accuracy / data_iterator_len, running_loss / data_iterator_len
 
 
 def get_predictions_for_data(model, data_iter):
@@ -442,26 +442,28 @@ def get_predictions_for_data(model, data_iter):
     :param data_iter: torch iterator as given by the DataManager
     :return:
     """
-    predictions = list()
-    for data in data_iter:
-        inputs, labels = data
-        outputs = model.predict(inputs)
-        predictions.append(outputs)
-    return predictions
-
-def get_acc_for_subsets(model, data_iter, index):
-    index = sorted(index)
-    # predictions = list()
-    cnt = 0
-    acc = 0.0
-    for i, data in enumerate(data_iter):
-        if i == index[cnt]:
+    with torch.no_grad():
+        predictions = list()
+        for data in data_iter:
             inputs, labels = data
             outputs = model.predict(inputs)
-            # predictions.append(outputs)
-            cnt += 1
-            acc += binary_accuracy(outputs, labels)
-    return acc / len(index)
+            predictions.append(outputs)
+        return predictions
+
+def get_acc_for_subsets(model, data_iter, index):
+    with torch.no_grad():
+        index = sorted(index)
+        # predictions = list()
+        cnt = 0
+        acc = 0.0
+        for i, data in enumerate(data_iter):
+            if i == index[cnt]:
+                inputs, labels = data
+                outputs = model.predict(inputs)
+                # predictions.append(outputs)
+                cnt += 1
+                acc += binary_accuracy(outputs, labels)
+        return acc / len(index)
 
 
 def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
@@ -548,7 +550,7 @@ if __name__ == '__main__':
     log_linear = "log_linear"
     log_linear_w2v = "log_linear_w2v"
     lstm = "lstm"
-    nn_name = log_linear
+    nn_name = lstm
     model, val_acc, val_loss, train_accuracy, train_loss, test_acc, test_loss, data_manager = run_part(nn_name)
     rare_acc, negated_polarity_acc = acc_on_subsets(model, data_manager)
     print(f"rare words accurecy is : {rare_acc}  and negated pol words acc is :{negated_polarity_acc}")
