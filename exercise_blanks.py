@@ -425,7 +425,7 @@ def evaluate(model, data_iterator, criterion):
         labels = labels.reshape(outputs.shape)
         accuracy += binary_accuracy(outputs, labels)
         loss = criterion(outputs, labels)
-        loss.backward()
+        # loss.backward()
 
         running_loss += loss.item()
         data_iterator_len += 1
@@ -448,6 +448,20 @@ def get_predictions_for_data(model, data_iter):
         outputs = model.predict(inputs)
         predictions.append(outputs)
     return predictions
+
+def get_acc_for_subsets(model, data_iter, index):
+    index = sorted(index)
+    # predictions = list()
+    cnt = 0
+    acc = 0.0
+    for i, data in enumerate(data_iter):
+        if i == index[cnt]:
+            inputs, labels = data
+            outputs = model.predict(inputs)
+            # predictions.append(outputs)
+            cnt += 1
+            acc += binary_accuracy(outputs, labels)
+    return acc / len(index)
 
 
 def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
@@ -480,8 +494,8 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
         print(f"finshed the {epoch+1} and it took {end - start} epoch val_acc = {val_acc} , val_loss = {val_loss}")
         val_accuracy.append(val_acc)
         val_train_loss.append(val_loss)
-    return val_accuracy, val_train_loss, accuracy, train_loss
-
+    test_acc, test_loss = evaluate(model, data_manager.get_torch_iterator(data_subset=TEST), criterion)
+    return val_accuracy, val_train_loss, accuracy, train_loss, test_acc, test_loss
 
 def train_log_linear_with_one_hot():
     """
@@ -489,8 +503,8 @@ def train_log_linear_with_one_hot():
     """
     data_manager = DataManager(batch_size=64)
     model = LogLinear(data_manager.get_input_shape())
-    val_acc, val_loss, train_accuracy, train_loss = train_model(model, data_manager, 20, lr=0.01, weight_decay=0.001)
-    return model, val_acc, val_loss, train_accuracy, train_loss
+    val_acc, val_loss, train_accuracy, train_loss, test_acc, test_loss = train_model(model, data_manager, 20, lr=0.01, weight_decay=0.001)
+    return model, val_acc, val_loss, train_accuracy, train_loss, test_acc, test_loss, data_manager
 
 
 def train_log_linear_with_w2v():
@@ -500,8 +514,8 @@ def train_log_linear_with_w2v():
     """
     data_manager = DataManager(data_type=W2V_AVERAGE, batch_size=64, embedding_dim=W2V_EMBEDDING_DIM)
     model = LogLinear(data_manager.get_input_shape())
-    val_acc, val_loss, train_accuracy, train_loss = train_model(model, data_manager, 20, lr=0.01, weight_decay=0.001)
-    return model, val_acc, val_loss, train_accuracy, train_loss
+    val_acc, val_loss, train_accuracy, train_loss, test_acc, test_loss = train_model(model, data_manager, 20, lr=0.01, weight_decay=0.001)
+    return model, val_acc, val_loss, train_accuracy, train_loss, test_acc, test_loss, data_manager
 
 
 
@@ -510,9 +524,9 @@ def train_lstm_with_w2v():
     Here comes your code for training and evaluation of the LSTM model.
     """
     data_manager = DataManager(data_type=W2V_SEQUENCE, batch_size=64, embedding_dim=W2V_EMBEDDING_DIM)
-    model = LSTM( embedding_dim=W2V_EMBEDDING_DIM, hidden_dim=SEQ_LEN, n_layers=100, dropout=0.5)
-    val_acc, val_loss, train_accuracy, train_loss = train_model(model, data_manager, 4, lr=0.001, weight_decay=0.0001)
-    return model, val_acc, val_loss, train_accuracy, train_loss
+    model = LSTM(embedding_dim=W2V_EMBEDDING_DIM, hidden_dim=SEQ_LEN, n_layers=1, dropout=0.5)
+    val_acc, val_loss, train_accuracy, train_loss, test_acc, test_loss = train_model(model, data_manager, 4, lr=0.001, weight_decay=0.0001)
+    return model, val_acc, val_loss, train_accuracy, train_loss, test_acc, test_loss, data_manager
 
 
 def run_part(part):
@@ -523,8 +537,18 @@ def run_part(part):
     if part == 8:
         return train_lstm_with_w2v()
 
+def acc_on_subsets(model, data_manager):
+    negated_polarity_inx = data_loader.get_negated_polarity_examples(data_manager.sentences["test"])
+    rare_words_inx = data_loader.get_rare_words_examples(data_manager.sentences["test"], data_manager.sentiment_dataset)
+    rare_acc = get_acc_for_subsets(model,data_manager.get_torch_iterator(data_subset=TEST),rare_words_inx)
+    negated_polarity_acc = get_acc_for_subsets(model, data_manager.get_torch_iterator(data_subset=TEST), negated_polarity_inx)
+    return rare_acc, negated_polarity_acc
+
 if __name__ == '__main__':
-    model, val_acc, val_loss, train_accuracy, train_loss = run_part(8)
+    model, val_acc, val_loss, train_accuracy, train_loss, test_acc, test_loss, data_manager = run_part(7)
+    rare_acc, negated_polarity_acc = acc_on_subsets(model, data_manager)
+    print(f"rare words accurecy is : {rare_acc}  and negated pol words acc is :{negated_polarity_acc}")
+    print(f"test loss is : {test_loss} and test acc is : {test_acc}")
     fig = go.Figure([go.Scatter(name="Validetion Loss", y=val_loss),
                      go.Scatter(name="Train Loss", y=train_loss)])
     fig.show()
