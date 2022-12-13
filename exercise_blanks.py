@@ -4,11 +4,13 @@ import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
 import os
+from torch.autograd import Variable
 from torch.utils.data import DataLoader, TensorDataset, Dataset
 import operator
 import data_loader
 import pickle
 import tqdm
+import time
 import plotly.graph_objects as go
 
 # ------------------------------------------- Constants ----------------------------------------
@@ -182,7 +184,14 @@ def sentence_to_embedding(sent, word_to_vec, seq_len, embedding_dim=300):
     :param embedding_dim: the dimension of the w2v embedding
     :return: numpy ndarray of shape (seq_len, embedding_dim) with the representation of the sentence
     """
-    return
+    emb = np.zeros((seq_len, embedding_dim))
+    for i in range(len(sent.text)):
+        if i == seq_len:
+            break
+        if sent.text[i] in word_to_vec:
+            emb[i, :] = word_to_vec[sent.text[i]]
+    return emb
+
 
 
 class OnlineDataset(Dataset):
@@ -296,13 +305,37 @@ class LSTM(nn.Module):
     An LSTM for sentiment analysis with architecture as described in the exercise description.
     """
     def __init__(self, embedding_dim, hidden_dim, n_layers, dropout):
-        return
-
+        super(LSTM, self).__init__()
+        self.num_layers = n_layers
+        self.hidden_dim = hidden_dim
+        self.lstm = nn.LSTM(embedding_dim,
+                            hidden_dim,
+                            num_layers=n_layers,
+                            bidirectional=True,
+                            batch_first=True)
+        self.dropout = nn.Dropout(dropout)
+        self.fc = nn.Linear(hidden_dim * 2, 1)
     def forward(self, text):
-        return
+        batch_size = text.shape[0]
+        h_0, c_0 = self.init_hidden(batch_size)
+        # x = self.lstm(text, (2 * self.num_layers, self.hidden_dim))
+        x, (h_n, c_n) = self.lstm(text.float(), (h_0, c_0))
+        dropped = self.dropout(x[:, -1, :])
+        output = self.fc(dropped)
+        return output
+
+    def init_hidden(self, batch_size):
+        h, c = (Variable(torch.zeros(self.num_layers*2, batch_size, self.hidden_dim)),
+                Variable(torch.zeros(self.num_layers * 2, batch_size, self.hidden_dim)))
+        return h, c
 
     def predict(self, text):
-        return
+        batch_size = text.shape[0]
+        h_0, c_0 = self.init_hidden(batch_size)
+        # x = self.lstm(text, (2 * self.num_layers, self.hidden_dim))
+        x, (h_n, c_n) = self.lstm(text.float(), (h_0, c_0))
+        output = self.fc(x[:, -1, :])
+        return F.sigmoid(output)
 
 
 class LogLinear(nn.Module):
@@ -317,9 +350,6 @@ class LogLinear(nn.Module):
 
     def forward(self, x):
         flat_x = torch.flatten(x, 1).float()
-        # count = torch.numel(flat_x[flat_x > 0.5])
-        # if count > 0:
-        #     print(count)
         return self.fc(flat_x)
 
     def predict(self, x):
@@ -438,12 +468,16 @@ def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
     optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
     for epoch in range(n_epochs):
         print(f"starting the {epoch+1} epoch")
+        start = time.time()
         acc, loss = train_epoch(model, data_manager.get_torch_iterator(data_subset=TRAIN), optimizer, criterion)
+        end = time.time()
         accuracy.append(acc)
         train_loss.append(loss)
-        print(f"finshed the {epoch + 1} epoch train_acc = {acc} , train_loss = {loss}")
+        print(f"finshed the {epoch + 1} and it took {end - start} epoch train_acc = {acc} , train_loss = {loss}")
+        start = time.time()
         val_acc, val_loss = evaluate(model, data_manager.get_torch_iterator(data_subset=VAL), criterion)
-        print(f"finshed the {epoch+1} epoch val_acc = {val_acc} , val_loss = {val_loss}")
+        end = time.time()
+        print(f"finshed the {epoch+1} and it took {end - start} epoch val_acc = {val_acc} , val_loss = {val_loss}")
         val_accuracy.append(val_acc)
         val_train_loss.append(val_loss)
     return val_accuracy, val_train_loss, accuracy, train_loss
@@ -464,7 +498,7 @@ def train_log_linear_with_w2v():
     Here comes your code for training and evaluation of the log linear model with word embeddings
     representation.
     """
-    data_manager = DataManager(data_type=W2V_AVERAGE, batch_size=64, embedding_dim=300)
+    data_manager = DataManager(data_type=W2V_AVERAGE, batch_size=64, embedding_dim=W2V_EMBEDDING_DIM)
     model = LogLinear(data_manager.get_input_shape())
     val_acc, val_loss, train_accuracy, train_loss = train_model(model, data_manager, 20, lr=0.01, weight_decay=0.001)
     return model, val_acc, val_loss, train_accuracy, train_loss
@@ -475,16 +509,22 @@ def train_lstm_with_w2v():
     """
     Here comes your code for training and evaluation of the LSTM model.
     """
-    return
+    data_manager = DataManager(data_type=W2V_SEQUENCE, batch_size=64, embedding_dim=W2V_EMBEDDING_DIM)
+    model = LSTM( embedding_dim=W2V_EMBEDDING_DIM, hidden_dim=SEQ_LEN, n_layers=100, dropout=0.5)
+    val_acc, val_loss, train_accuracy, train_loss = train_model(model, data_manager, 4, lr=0.001, weight_decay=0.0001)
+    return model, val_acc, val_loss, train_accuracy, train_loss
+
 
 def run_part(part):
     if part == 5:
         return train_log_linear_with_one_hot()
     if part == 7:
         return train_log_linear_with_w2v()
+    if part == 8:
+        return train_lstm_with_w2v()
 
 if __name__ == '__main__':
-    model, val_acc, val_loss, train_accuracy, train_loss = run_part(7)
+    model, val_acc, val_loss, train_accuracy, train_loss = run_part(8)
     fig = go.Figure([go.Scatter(name="Validetion Loss", y=val_loss),
                      go.Scatter(name="Train Loss", y=train_loss)])
     fig.show()
