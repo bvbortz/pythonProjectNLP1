@@ -530,11 +530,11 @@ def train_lstm_with_w2v():
 
 
 def run_part(part):
-    if part == 5:
+    if part == "log_linear":
         return train_log_linear_with_one_hot()
-    if part == 7:
+    if part == "log_linear_w2v":
         return train_log_linear_with_w2v()
-    if part == 8:
+    if part == "lstm":
         return train_lstm_with_w2v()
 
 def acc_on_subsets(model, data_manager):
@@ -545,15 +545,21 @@ def acc_on_subsets(model, data_manager):
     return rare_acc, negated_polarity_acc
 
 if __name__ == '__main__':
-    model, val_acc, val_loss, train_accuracy, train_loss, test_acc, test_loss, data_manager = run_part(7)
+    log_linear = "log_linear"
+    log_linear_w2v = "log_linear_w2v"
+    lstm = "lstm"
+    nn_name = log_linear
+    model, val_acc, val_loss, train_accuracy, train_loss, test_acc, test_loss, data_manager = run_part(nn_name)
     rare_acc, negated_polarity_acc = acc_on_subsets(model, data_manager)
     print(f"rare words accurecy is : {rare_acc}  and negated pol words acc is :{negated_polarity_acc}")
     print(f"test loss is : {test_loss} and test acc is : {test_acc}")
     fig = go.Figure([go.Scatter(name="Validetion Loss", y=val_loss),
                      go.Scatter(name="Train Loss", y=train_loss)])
     fig.show()
+    fig.write_image(nn_name+"_loss.png")
     fig2 = go.Figure([go.Scatter(name="Validetion acc", y=val_acc),
                      go.Scatter(name="Train acc", y=train_accuracy)])
     fig2.show()
+    fig2.write_image(nn_name + "_acc.png")
     # train_log_linear_with_w2v()
     # train_lstm_with_w2v()
