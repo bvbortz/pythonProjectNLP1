@@ -1,11 +1,11 @@
 import nltk
 from nltk.corpus import dependency_treebank
 
-def word_bigrams(v1, v2, sentence):
+def word_bigrams(v1, v2, sentence, fiture="word"):
     res = list()
-    for w1 in sentence:
-        for w2 in sentence:
-            if v1 == w1 and v2 == w2:
+    for node1 in sentence.nodes:
+        for node2 in sentence.nodes:
+            if v1[fiture] == node1[fiture] and v2[fiture] == node2[fiture]:
                 res.append(1)
             else:
                 res.append(0)
