@@ -92,7 +92,7 @@ def load_word2vec():
     return wv_from_bin
 
 
-def create_or_load_slim_w2v(words_list, cache_w2v=True):#TODO explain in readme changed the defualt from Flase to True
+def create_or_load_slim_w2v(words_list, cache_w2v=False):#TODO explain in readme changed the defualt from Flase to True
     """
     returns word2vec dict only for words which appear in the dataset.
     :param words_list: list of words to use for the w2v dict
@@ -308,19 +308,19 @@ class LSTM(nn.Module):
         super(LSTM, self).__init__()
         self.num_layers = n_layers
         self.hidden_dim = hidden_dim
-        self.lstm = nn.LSTM(embedding_dim,
-                            hidden_dim,
+        self.lstm = nn.LSTM(input_size=embedding_dim,
+                            hidden_size=hidden_dim,
                             num_layers=n_layers,
                             bidirectional=True,
                             batch_first=True,
                             dropout=dropout)
         self.fc = nn.Linear(hidden_dim * 2, 1)
     def forward(self, text):
-        batch_size = text.shape[0]
-        h_0, c_0 = self.init_hidden(batch_size)
-        # x = self.lstm(text, (2 * self.num_layers, self.hidden_dim))
-        x, (h_n, c_n) = self.lstm(text.float(), (h_0, c_0))
-        output = self.fc(x[:, -1, :])
+        # batch_size = text.shape[0]
+        # h_0, c_0 = self.init_hidden(batch_size)
+        # x, (h_n, c_n) = self.lstm(text.float(), (h_0, c_0))
+        x = self.lstm(text.float())[1][0]
+        output = self.fc(torch.cat(torch.unbind(x, 0), 1))
         return output
 
     def init_hidden(self, batch_size):
@@ -329,11 +329,12 @@ class LSTM(nn.Module):
         return h, c
 
     def predict(self, text):
-        batch_size = text.shape[0]
-        h_0, c_0 = self.init_hidden(batch_size)
-        # x = self.lstm(text, (2 * self.num_layers, self.hidden_dim))
-        x, (h_n, c_n) = self.lstm(text.float(), (h_0, c_0))
-        output = self.fc(x[:, -1, :])
+        # batch_size = text.shape[0]
+        # h_0, c_0 = self.init_hidden(batch_size)
+        # x, (h_n, c_n) = self.lstm(text.float(), (h_0, c_0))
+        # output = self.fc(x[:, -1, :])
+        x = self.lstm(text.float())[1][0]
+        output = self.fc(torch.cat(torch.unbind(x, 0), 1))
         return torch.sigmoid(output)
 
 
@@ -372,7 +373,7 @@ def binary_accuracy(preds, y):
     #         true_cnt += 1
     # preds = preds.detach().numpy()
     y = y.reshape(preds.shape)
-    return torch.sum(torch.round(preds) == y).float() / len(preds)
+    return torch.sum(torch.round(preds) == torch.round(y)).float() / len(preds)
 
 
 def train_epoch(model, data_iterator, optimizer, criterion):
@@ -384,9 +385,9 @@ def train_epoch(model, data_iterator, optimizer, criterion):
     :param optimizer: the optimizer object for the training process.
     :param criterion: the criterion object for the training process.
     """
-    accuracy = 0.0
-    running_loss = 0.0
-    data_iterator_len = 0
+    accuracy = []
+    running_loss = []
+    # data_iterator_len = 0
     for data in data_iterator:
         inputs, labels = data
         optimizer.zero_grad()
@@ -395,15 +396,15 @@ def train_epoch(model, data_iterator, optimizer, criterion):
         outputs = model(inputs)
         # outputs = outputs.reshape(labels.shape)
         labels = labels.reshape(outputs.shape)
-        accuracy += binary_accuracy(outputs, labels)
+        accuracy.append(binary_accuracy(outputs, labels))
 
         loss = criterion(outputs, labels)
         loss.backward()
         optimizer.step()
 
-        running_loss += loss.item()
-        data_iterator_len += 1
-    return accuracy/data_iterator_len, running_loss / data_iterator_len
+        running_loss.append(loss.item())
+        # data_iterator_len += 1
+    return np.mean(accuracy), np.mean(running_loss)
 
 
 def evaluate(model, data_iterator, criterion):
@@ -415,21 +416,21 @@ def evaluate(model, data_iterator, criterion):
     :return: tuple of (average loss over all examples, average accuracy over all examples)
     """
     with torch.no_grad():
-        accuracy = 0.0
-        running_loss = 0.0
-        data_iterator_len = 0
+        accuracy = []
+        running_loss = []
+        # data_iterator_len = 0
         for data in data_iterator:
             inputs, labels = data
 
             outputs = model.predict(inputs)
             labels = labels.reshape(outputs.shape)
-            accuracy += binary_accuracy(outputs, labels)
+            accuracy.append(binary_accuracy(outputs, labels))
             loss = criterion(outputs, labels)
             # loss.backward()
 
-            running_loss += loss.item()
-            data_iterator_len += 1
-        return accuracy / data_iterator_len, running_loss / data_iterator_len
+            running_loss.append(loss.item())
+            # data_iterator_len += 1
+        return np.mean(accuracy), np.mean(running_loss)
 
 
 def get_predictions_for_data(model, data_iter):
