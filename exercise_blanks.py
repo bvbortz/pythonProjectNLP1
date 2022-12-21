@@ -85,14 +85,13 @@ def load_word2vec():
     """
     import gensim.downloader as api
     wv_from_bin = api.load("word2vec-google-news-300")
-    # vocab = list(wv_from_bin.vocab.keys())
-    vocab = list(wv_from_bin.index_to_key)
-    # print(wv_from_bin.vocab[vocab[0]])
+    vocab = list(wv_from_bin.vocab.keys())
+    print(wv_from_bin.vocab[vocab[0]])
     print("Loaded vocab size %i" % len(vocab))
     return wv_from_bin
 
 
-def create_or_load_slim_w2v(words_list, cache_w2v=False):#TODO explain in readme changed the defualt from Flase to True
+def create_or_load_slim_w2v(words_list, cache_w2v=True):#TODO explain in readme changed the defualt from Flase to True
     """
     returns word2vec dict only for words which appear in the dataset.
     :param words_list: list of words to use for the w2v dict
@@ -121,10 +120,13 @@ def get_w2v_average(sent, word_to_vec, embedding_dim): # TODO make sure this fun
     :return The average embedding vector as numpy ndarray.
     """
     new_emb = np.zeros(embedding_dim)
+    word_cnt = 0
     for i in range(len(sent.text)):
         if sent.text[i] in word_to_vec:
             new_emb += word_to_vec[sent.text[i]]
-    new_emb /= len(sent.text)
+            word_cnt += 1
+    if word_cnt != 0:
+        new_emb /= word_cnt
     return new_emb
 
 
@@ -308,19 +310,19 @@ class LSTM(nn.Module):
         super(LSTM, self).__init__()
         self.num_layers = n_layers
         self.hidden_dim = hidden_dim
-        self.lstm = nn.LSTM(input_size=embedding_dim,
-                            hidden_size=hidden_dim,
+        self.lstm = nn.LSTM(embedding_dim,
+                            hidden_dim,
                             num_layers=n_layers,
                             bidirectional=True,
                             batch_first=True,
                             dropout=dropout)
         self.fc = nn.Linear(hidden_dim * 2, 1)
     def forward(self, text):
-        # batch_size = text.shape[0]
-        # h_0, c_0 = self.init_hidden(batch_size)
-        # x, (h_n, c_n) = self.lstm(text.float(), (h_0, c_0))
-        x = self.lstm(text.float())[1][0]
-        output = self.fc(torch.cat(torch.unbind(x, 0), 1))
+        batch_size = text.shape[0]
+        h_0, c_0 = self.init_hidden(batch_size)
+        # x = self.lstm(text, (2 * self.num_layers, self.hidden_dim))
+        x, (h_n, c_n) = self.lstm(text.float(), (h_0, c_0))
+        output = self.fc(torch.cat(torch.unbind(h_n, 0), 1))
         return output
 
     def init_hidden(self, batch_size):
@@ -329,12 +331,11 @@ class LSTM(nn.Module):
         return h, c
 
     def predict(self, text):
-        # batch_size = text.shape[0]
-        # h_0, c_0 = self.init_hidden(batch_size)
-        # x, (h_n, c_n) = self.lstm(text.float(), (h_0, c_0))
-        # output = self.fc(x[:, -1, :])
-        x = self.lstm(text.float())[1][0]
-        output = self.fc(torch.cat(torch.unbind(x, 0), 1))
+        batch_size = text.shape[0]
+        h_0, c_0 = self.init_hidden(batch_size)
+        # x = self.lstm(text, (2 * self.num_layers, self.hidden_dim))
+        x, (h_n, c_n) = self.lstm(text.float(), (h_0, c_0))
+        output = self.fc(torch.cat(torch.unbind(h_n, 0), 1))
         return torch.sigmoid(output)
 
 
@@ -367,13 +368,8 @@ def binary_accuracy(preds, y):
     :param y: a vector of true labels
     :return: scalar value - (<number of accurate predictions> / <number of examples>)
     """
-    # true_cnt = 0
-    # for i in range(len(preds)):
-    #     if np.round(preds[i]) == y[i]:
-    #         true_cnt += 1
-    # preds = preds.detach().numpy()
     y = y.reshape(preds.shape)
-    return torch.sum(torch.round(preds) == torch.round(y)).float() / len(preds)
+    return torch.mean((torch.round(preds) == y).float())
 
 
 def train_epoch(model, data_iterator, optimizer, criterion):
@@ -387,23 +383,16 @@ def train_epoch(model, data_iterator, optimizer, criterion):
     """
     accuracy = []
     running_loss = []
-    # data_iterator_len = 0
     for data in data_iterator:
         inputs, labels = data
         optimizer.zero_grad()
-
-        # outputs = model(inputs.float())
-        outputs = model(inputs)
-        # outputs = outputs.reshape(labels.shape)
+        outputs = model.predict(inputs)
         labels = labels.reshape(outputs.shape)
         accuracy.append(binary_accuracy(outputs, labels))
-
-        loss = criterion(outputs, labels)
+        loss = criterion(model(inputs), labels)
         loss.backward()
         optimizer.step()
-
         running_loss.append(loss.item())
-        # data_iterator_len += 1
     return np.mean(accuracy), np.mean(running_loss)
 
 
@@ -418,18 +407,13 @@ def evaluate(model, data_iterator, criterion):
     with torch.no_grad():
         accuracy = []
         running_loss = []
-        # data_iterator_len = 0
         for data in data_iterator:
             inputs, labels = data
-
             outputs = model.predict(inputs)
             labels = labels.reshape(outputs.shape)
             accuracy.append(binary_accuracy(outputs, labels))
-            loss = criterion(outputs, labels)
-            # loss.backward()
-
+            loss = criterion(model(inputs), labels)
             running_loss.append(loss.item())
-            # data_iterator_len += 1
         return np.mean(accuracy), np.mean(running_loss)
 
 
@@ -450,21 +434,6 @@ def get_predictions_for_data(model, data_iter):
             outputs = model.predict(inputs)
             predictions.append(outputs)
         return predictions
-
-def get_acc_for_subsets(model, data_iter, index):
-    with torch.no_grad():
-        index = sorted(index)
-        # predictions = list()
-        cnt = 0
-        acc = 0.0
-        for i, data in enumerate(data_iter):
-            if i == index[cnt]:
-                inputs, labels = data
-                outputs = model.predict(inputs)
-                # predictions.append(outputs)
-                cnt += 1
-                acc += binary_accuracy(outputs, labels)
-        return acc / len(index)
 
 
 def train_model(model, data_manager, n_epochs, lr, weight_decay=0.):
@@ -540,29 +509,42 @@ def run_part(part):
     if part == "lstm":
         return train_lstm_with_w2v()
 
+
 def acc_on_subsets(model, data_manager):
-    negated_polarity_inx = data_loader.get_negated_polarity_examples(data_manager.sentences["test"])
-    rare_words_inx = data_loader.get_rare_words_examples(data_manager.sentences["test"], data_manager.sentiment_dataset)
-    rare_acc = get_acc_for_subsets(model,data_manager.get_torch_iterator(data_subset=TEST),rare_words_inx)
-    negated_polarity_acc = get_acc_for_subsets(model, data_manager.get_torch_iterator(data_subset=TEST), negated_polarity_inx)
-    return rare_acc, negated_polarity_acc
+    negated_pol_inx = data_loader.get_negated_polarity_examples(data_manager.sentences[TEST])
+    negated_pol_sentences = (np.array(data_manager.sentences[TEST])[negated_pol_inx]).tolist()
+    data_iter_negated_pol = DataLoader(OnlineDataset(negated_pol_sentences,
+                                                          data_manager.sent_func, data_manager.sent_func_kwargs),
+                                            batch_size=64)
+    negated_polarity_acc, negated_polarity_loss = evaluate(model, data_iter_negated_pol, nn.BCEWithLogitsLoss())
+    rare_words_inx = data_loader.get_rare_words_examples(data_manager.sentences[TEST], data_manager.sentiment_dataset)
+    rare_words_sentences = (np.array(data_manager.sentences[TEST])[rare_words_inx]).tolist()
+    data_iter_rare_words = DataLoader(OnlineDataset(rare_words_sentences,
+                                                          data_manager.sent_func, data_manager.sent_func_kwargs),
+                                            batch_size=64)
+    rare_words_acc, rare_words_loss = evaluate(model, data_iter_rare_words, nn.BCEWithLogitsLoss())
+    return rare_words_acc, negated_polarity_acc, rare_words_loss, negated_polarity_loss
 
 if __name__ == '__main__':
     log_linear = "log_linear"
     log_linear_w2v = "log_linear_w2v"
     lstm = "lstm"
-    nn_name = lstm
-    model, val_acc, val_loss, train_accuracy, train_loss, test_acc, test_loss, data_manager = run_part(nn_name)
-    rare_acc, negated_polarity_acc = acc_on_subsets(model, data_manager)
-    print(f"rare words accurecy is : {rare_acc}  and negated pol words acc is :{negated_polarity_acc}")
-    print(f"test loss is : {test_loss} and test acc is : {test_acc}")
-    fig = go.Figure([go.Scatter(name="Validetion Loss", y=val_loss),
-                     go.Scatter(name="Train Loss", y=train_loss)])
-    fig.show()
-    fig.write_image(nn_name+"_loss.png")
-    fig2 = go.Figure([go.Scatter(name="Validetion acc", y=val_acc),
-                     go.Scatter(name="Train acc", y=train_accuracy)])
-    fig2.show()
-    fig2.write_image(nn_name + "_acc.png")
+    # nn_name = lstm
+    all_models = [log_linear, log_linear_w2v, lstm]
+    for nn_name in all_models:
+        model, val_acc, val_loss, train_accuracy, train_loss, test_acc, test_loss, data_manager = run_part(nn_name)
+        rare_acc, negated_polarity_acc, rare_words_loss, negated_polarity_loss = acc_on_subsets(model, data_manager)
+        print(f"rare words accuracy is : {rare_acc}  and negated pol words acc is :{negated_polarity_acc}")
+        print(f"rare words loss is : {rare_words_loss}  and negated pol words loss is :{negated_polarity_loss}")
+        print(f"test loss is : {test_loss} and test acc is : {test_acc}")
+        print(f"validation accuracy {np.mean(val_acc)}")
+        fig = go.Figure([go.Scatter(name="Validetion Loss", y=val_loss),
+                         go.Scatter(name="Train Loss", y=train_loss)])
+        fig.show()
+        fig.write_image(nn_name+"_loss.png")
+        fig2 = go.Figure([go.Scatter(name="Validetion acc", y=val_acc),
+                         go.Scatter(name="Train acc", y=train_accuracy)])
+        fig2.show()
+        fig2.write_image(nn_name + "_acc.png")
     # train_log_linear_with_w2v()
     # train_lstm_with_w2v()
