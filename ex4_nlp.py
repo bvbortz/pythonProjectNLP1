@@ -74,10 +74,15 @@ def perceptron(feature_size, num_iter, train, lr):
     for r in range(num_iter):
         for i, tree in enumerate(train):
             opt_tree = min_spanning_arborescence_nx(get_arcs(tree, teta), 0)
-            teta +=lr * (sum_edges(tree, tree.root, feature_size) - sum_edges(opt_tree, opt_tree.root, feature_size))
+            teta +=lr * (sum_edges(tree, tree.root, feature_size) - sum_opt_edges(tree, opt_tree))
             teta_sum += teta
     return teta_sum / (num_iter * len(train))
 
+def sum_opt_edges(tree, opt_tree):
+    sum = 0
+    for arc in opt_tree:
+        sum += feature_function(tree.nodes[arc.tail], tree.nodes[arc.head])
+    return sum
 
 def get_arcs(tree, teta):
     arcs = list()
@@ -88,6 +93,7 @@ def get_arcs(tree, teta):
                 arcs.append(Arc(i, -feature_function(tree.nodes[i], tree.nodes[j]) @ teta.T, j))
     return arcs
 
+
 def sum_edges(tree, root, size):
     if len(root['deps']['']) == 0:
         return np.zeros(size, dtype=np.uint8)
@@ -96,12 +102,14 @@ def sum_edges(tree, root, size):
         sum += feature_function(root, tree.nodes[child]) + sum_edges(tree, tree.nodes[child], size)
     return sum
 
+
 def attachment_score(true_tree, pred_tree):
-    if len(true_tree.nodes) != len(pred_tree.node):
-        print("error")
     total_equal_edges = 0
     for i in range(len(true_tree.nodes)):
-        total_equal_edges += np.sum(sorted(true_tree.nodes[i]['deps']['']) == sorted(pred_tree.nodes[i]['deps']['']))
+        for j in range(true_tree.nodes[i]['deps']['']):
+            for arc in pred_tree:
+                if arc.tail == i and arc.head == j:
+                    total_equal_edges += 1
     return total_equal_edges / len(true_tree.nodes)
 
 
