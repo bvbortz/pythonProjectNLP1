@@ -7,7 +7,7 @@ from networkx.algorithms import minimum_spanning_arborescence
 
 words_dict = {None: 0}
 tags_dict = {'TOP': 0}
-
+Arc = namedtuple('Arc', ('tail', 'weight', 'head'))
 def test_feature_function():
     pass
 
@@ -38,7 +38,7 @@ def feature_function(v1, v2, sentence=None):
     return : feature vector of Word bigrams
         """
     total_features = len(words_dict) ** 2 + len(tags_dict) ** 2
-    res = np.zeros(total_features)
+    res = np.zeros(total_features, dtype=np.uint8)
     w1 = v1['word']
     w2 = v2['word']
     if w1 in words_dict and w2 in words_dict:
@@ -69,11 +69,11 @@ def perceptron(feature_size, num_iter, train, lr):
             T' =Chu_Liu_Edmonds_algorithem
 
     """
-    teta = np.zeros(feature_size)
-    teta_sum = np.zeros(feature_size)
+    teta = np.zeros(feature_size, dtype=np.uint8)
+    teta_sum = np.zeros(feature_size, dtype=np.uint8)
     for r in range(num_iter):
         for i, tree in enumerate(train):
-            opt_tree = min_spanning_arborescence_nx(get_arcs(tree, teta))
+            opt_tree = min_spanning_arborescence_nx(get_arcs(tree, teta), 0)
             teta +=lr * (sum_edges(tree, tree.root, feature_size) - sum_edges(opt_tree, opt_tree.root, feature_size))
             teta_sum += teta
     return teta_sum / (num_iter * len(train))
@@ -81,14 +81,16 @@ def perceptron(feature_size, num_iter, train, lr):
 
 def get_arcs(tree, teta):
     arcs = list()
-    for node1 in tree.nodes:
-        for node2 in tree.nodes:
-            arcs.append((node1, -feature_function(node1, node2) * teta, node2))
+    length = len(tree.nodes)
+    for i in range(length):
+        for j in range(length):
+            if i != j:
+                arcs.append(Arc(i, -feature_function(tree.nodes[i], tree.nodes[j]) @ teta.T, j))
     return arcs
 
 def sum_edges(tree, root, size):
     if len(root['deps']['']) == 0:
-        return np.zeros(size)
+        return np.zeros(size, dtype=np.uint8)
     sum = 0
     for child in root['deps']['']:
         sum += feature_function(root, tree.nodes[child]) + sum_edges(tree, tree.nodes[child], size)
