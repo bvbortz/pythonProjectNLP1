@@ -1,8 +1,12 @@
 import nltk
 from nltk.corpus import dependency_treebank
+import numpy as np
+from collections import defaultdict, namedtuple
+from networkx import DiGraph
+from networkx.algorithms import minimum_spanning_arborescence
 
-words_dict = {}
-tags_dict = {}
+words_dict = {None: 0}
+tags_dict = {'TOP': 0}
 
 def test_feature_function():
     pass
@@ -66,10 +70,13 @@ def perceptron(feature_size, num_iter, train, lr):
 
     """
     teta = np.zeros(feature_size)
-    for r in num_iter:
+    teta_sum = np.zeros(feature_size)
+    for r in range(num_iter):
         for i, tree in enumerate(train):
             opt_tree = min_spanning_arborescence_nx(get_arcs(tree, teta))
-            teta = teta + lr * (sum_edges(tree, tree.root) - sum_edges(opt_tree, opt_tree.root))
+            teta +=lr * (sum_edges(tree, tree.root, feature_size) - sum_edges(opt_tree, opt_tree.root, feature_size))
+            teta_sum += teta
+    return teta_sum / (num_iter * len(train))
 
 
 def get_arcs(tree, teta):
@@ -79,12 +86,12 @@ def get_arcs(tree, teta):
             arcs.append((node1, -feature_function(node1, node2) * teta, node2))
     return arcs
 
-def sum_edges(tree, root):
-    if len(root['deps']) == 0:
-        return 0
+def sum_edges(tree, root, size):
+    if len(root['deps']['']) == 0:
+        return np.zeros(size)
     sum = 0
-    for child in root['deps']:
-        sum += feature_function(root, tree[child]) + sum_edges(tree, tree[child])
+    for child in root['deps']['']:
+        sum += feature_function(root, tree.nodes[child]) + sum_edges(tree, tree.nodes[child], size)
     return sum
 
 nltk.download('dependency_treebank')
@@ -92,4 +99,7 @@ sentences = dependency_treebank.parsed_sents()
 train_test_ratio = int(len(sentences) * 0.9)
 test = sentences[train_test_ratio:]
 train = sentences[:train_test_ratio]
-print(sum_edges(test[0], test[0].root))
+set_dicts(sentences)
+total_features = len(words_dict) ** 2 + len(tags_dict) ** 2
+sum1 = sum_edges(test[0], test[0].root, size=total_features)
+print(np.sum(sum1))
