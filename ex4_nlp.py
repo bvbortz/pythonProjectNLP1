@@ -94,6 +94,23 @@ def sum_edges(tree, root, size):
         sum += feature_function(root, tree.nodes[child]) + sum_edges(tree, tree.nodes[child], size)
     return sum
 
+def attachment_score(true_tree, pred_tree):
+    if len(true_tree.nodes) != len(pred_tree.node):
+        print("error")
+    total_equal_edges = 0
+    for i in range(len(true_tree.nodes)):
+        total_equal_edges += np.sum(sorted(true_tree.nodes[i]['deps']['']) == sorted(pred_tree.nodes[i]['deps']['']))
+    return total_equal_edges / len(true_tree.nodes)
+
+
+def evaluate(test, teta):
+    sum_score = 0
+    for i, tree in enumerate(test):
+        opt_tree = min_spanning_arborescence_nx(get_arcs(tree, teta))
+        sum_score += attachment_score(tree, opt_tree)
+    return sum_score / len(test)
+
+
 nltk.download('dependency_treebank')
 sentences = dependency_treebank.parsed_sents()
 train_test_ratio = int(len(sentences) * 0.9)
@@ -101,5 +118,6 @@ test = sentences[train_test_ratio:]
 train = sentences[:train_test_ratio]
 set_dicts(sentences)
 total_features = len(words_dict) ** 2 + len(tags_dict) ** 2
-sum1 = sum_edges(test[0], test[0].root, size=total_features)
-print(np.sum(sum1))
+teta_star = perceptron(total_features, 2, train, 1)
+score = evaluate(test, teta_star)
+print(f"the attachment_score is {score}")
