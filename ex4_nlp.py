@@ -58,7 +58,7 @@ def set_dicts(corpus):
             if tag not in tags_dict and tag is not None:
                 tags_dict[tag] = len(tags_dict)
 
-def perceptron(feature_size, num_iter, train):
+def perceptron(feature_size, num_iter, train, lr):
     """
     for r =1 to N number of iterration
         for i =1 to M number of trainnig set
@@ -68,11 +68,28 @@ def perceptron(feature_size, num_iter, train):
     teta = np.zeros(feature_size)
     for r in num_iter:
         for i, tree in enumerate(train):
-            pass
+            opt_tree = min_spanning_arborescence_nx(get_arcs(tree, teta))
+            teta = teta + lr * (sum_edges(tree, tree.root) - sum_edges(opt_tree, opt_tree.root))
 
+
+def get_arcs(tree, teta):
+    arcs = list()
+    for node1 in tree.nodes:
+        for node2 in tree.nodes:
+            arcs.append((node1, -feature_function(node1, node2) * teta, node2))
+    return arcs
+
+def sum_edges(tree, root):
+    if len(root['deps']) == 0:
+        return 0
+    sum = 0
+    for child in root['deps']:
+        sum += feature_function(root, tree[child]) + sum_edges(tree, tree[child])
+    return sum
 
 nltk.download('dependency_treebank')
 sentences = dependency_treebank.parsed_sents()
 train_test_ratio = int(len(sentences) * 0.9)
 test = sentences[train_test_ratio:]
 train = sentences[:train_test_ratio]
+print(sum_edges(test[0], test[0].root))
