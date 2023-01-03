@@ -1,10 +1,10 @@
-import nltk
 from nltk.corpus import dependency_treebank
+from nltk import download
 import numpy as np
 from collections import defaultdict, namedtuple
 from networkx import DiGraph
 from networkx.algorithms import minimum_spanning_arborescence
-
+import datetime
 words_dict = {None: 0}
 tags_dict = {'TOP': 0}
 Arc = namedtuple('Arc', ('tail', 'weight', 'head'))
@@ -69,18 +69,22 @@ def perceptron(feature_size, num_iter, train, lr):
             T' =Chu_Liu_Edmonds_algorithem
 
     """
+    print(f"started train on {len(train)} trees")
     teta = np.zeros(feature_size, dtype=np.uint8)
     teta_sum = np.zeros(feature_size, dtype=np.uint8)
     for r in range(num_iter):
         for i, tree in enumerate(train):
+            start_time = datetime.datetime.now().timestamp()
             opt_tree = min_spanning_arborescence_nx(get_arcs(tree, teta), 0)
-            teta +=lr * (sum_edges(tree, tree.root, feature_size) - sum_opt_edges(tree, opt_tree))
+            teta += lr * (sum_edges(tree, tree.root, feature_size) - sum_opt_edges(tree, opt_tree))
             teta_sum += teta
+            end_time = datetime.datetime.now().timestamp()
+            print(f"trained on {i} trees taken {end_time-start_time}")
     return teta_sum / (num_iter * len(train))
 
 def sum_opt_edges(tree, opt_tree):
     sum = 0
-    for arc in opt_tree:
+    for arc in opt_tree.values():
         sum += feature_function(tree.nodes[arc.tail], tree.nodes[arc.head])
     return sum
 
@@ -107,7 +111,7 @@ def attachment_score(true_tree, pred_tree):
     total_equal_edges = 0
     for i in range(len(true_tree.nodes)):
         for j in range(true_tree.nodes[i]['deps']['']):
-            for arc in pred_tree:
+            for arc in pred_tree.values():
                 if arc.tail == i and arc.head == j:
                     total_equal_edges += 1
     return total_equal_edges / len(true_tree.nodes)
@@ -121,7 +125,7 @@ def evaluate(test, teta):
     return sum_score / len(test)
 
 
-nltk.download('dependency_treebank')
+download('dependency_treebank')
 sentences = dependency_treebank.parsed_sents()
 train_test_ratio = int(len(sentences) * 0.9)
 test = sentences[train_test_ratio:]
