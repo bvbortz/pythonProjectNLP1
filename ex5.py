@@ -56,7 +56,13 @@ def linear_classification(portion=1.):
     x_train, y_train, x_test, y_test = get_data(categories=category_dict.keys(), portion=portion)
 
     # Add your code here
-    return
+
+    tf_x_train = tf.fit_transform(x_train)
+    tf_x_test = tf.fit_transform(x_test)
+    lr = LogisticRegression()
+    lr.fit(tf_x_train, y_train)
+    predictions = lr.predict(tf_x_test)
+    return accuracy_score(y_test, predictions)
 
 
 # Q2
@@ -104,6 +110,9 @@ def transformer_classification(portion=1.):
     # Add your code here
     # see https://huggingface.co/docs/transformers/v4.25.1/en/quicktour#trainer-a-pytorch-optimized-training-loop
     # Use the DataSet object defined above. No need for a DataCollator
+    # for epoch in range(5):
+
+
     return
 
 
