@@ -11,9 +11,8 @@ from networkx.algorithms import minimum_spanning_arborescence
 import datetime
 words_dict = {None: 0}
 tags_dict = {'TOP': 0}
+bonus = False
 Arc = namedtuple('Arc', ('tail', 'weight', 'head'))
-def test_feature_function():
-    pass
 
 def min_spanning_arborescence_nx(arcs, sink):
     """
@@ -44,6 +43,7 @@ def feature_function(v1, v2, sentence=None):
     total_features = len(words_dict) ** 2 + len(tags_dict) ** 2
     index1 = None
     index2 = None
+    index3 = None
     # res = np.zeros(total_features, dtype=np.uint8)
     w1 = v1['word']
     w2 = v2['word']
@@ -55,12 +55,23 @@ def feature_function(v1, v2, sentence=None):
     if t1 in tags_dict and t2 in tags_dict:
         # res[len(words_dict) ** 2 + tags_dict[t1] * len(tags_dict) + tags_dict[t2]] = 1
         index2 = len(words_dict) ** 2 + tags_dict[t1] * len(tags_dict) + tags_dict[t2]
+    ad1 = v1["address"]
+    ad2 = v2["address"]
+    if 0 < abs(ad1 - ad2) < 5:
+        index3 = len(words_dict) ** 2 + len(tags_dict) ** 2 + abs(ad1 - ad2)
     # return res
+    if bonus:
+        return index1, index2, index3
     return index1, index2
-
 def calc_weight(node1, node2, teta):
-    index1, index2 = feature_function(node1, node2)
-    return teta[index1] + teta[index2]
+    # index1, index2 = feature_function(node1, node2)
+    indexs = feature_function(node1, node2)
+    sum = 0
+    for i in indexs:
+        if i is not None:
+            sum += teta[i]
+    # return teta[index1] + teta
+    return sum
 
 def calc_weight2(node1, node2, teta):
     res = 0
@@ -104,7 +115,7 @@ def perceptron(feature_size, num_iter, train, lr):
             opt_tree = min_spanning_arborescence_nx(get_arcs(tree, teta), 0)
             # teta += lr * (sum_edges(tree, tree.root, feature_size) - sum_opt_edges(tree, opt_tree, feature_size))
             update_teta_dict(teta, lr, sum_edges(tree, tree.root, feature_size), sum_opt_edges(tree, opt_tree, feature_size))
-            teta_sum += teta
+            teta_sum.update(teta)
             end_time = datetime.datetime.now().timestamp()
             print(f"trained on {i} trees taken {end_time-start_time}")
     for key in teta_sum:
@@ -125,9 +136,13 @@ def update_teta_dict(teta, lr, sum_tree, sum_opt):
 
 
 def add_score_to_sum(sum, node1, node2):
-    index1, index2 = feature_function(node1, node2)
-    update_1d_dict(sum, index1)
-    update_1d_dict(sum, index2)
+    # index1, index2 = feature_function(node1, node2)
+    # update_1d_dict(sum, index1)
+    # update_1d_dict(sum, index2)
+    indexs = feature_function(node1, node2)
+    for i in indexs:
+        if i is not None:
+            update_1d_dict(sum, i)
     return sum
 
 def get_val_from_dict(dict, key):
@@ -164,13 +179,6 @@ def get_arcs(tree, teta):
     return [Arc(node1['address'], -calc_weight(node1, node2, teta), node2['address']) for node1, node2 in permutations(tree.nodes.values(), 2)]
 
 
-def sum_edges2(tree, root, size):
-    if len(root['deps']['']) == 0:
-        return np.zeros(size, dtype=np.uint8)
-    sum = 0
-    for child in root['deps']['']:
-        sum += feature_function(root, tree.nodes[child]) + sum_edges(tree, tree.nodes[child], size)
-    return sum
 
 def sum_edges(tree, root, size):
     sum = dict()
@@ -203,10 +211,12 @@ def new_train():
     download('dependency_treebank')
     sentences = dependency_treebank.parsed_sents()
     train_test_ratio = int(len(sentences) * 0.9)
-    test = sentences[train_test_ratio:]
+    test = sentences[int(len(sentences) * 0.9):]
     train = sentences[:train_test_ratio]
     set_dicts(sentences)
     total_features = len(words_dict) ** 2 + len(tags_dict) ** 2
+    if bonus:
+        total_features += 4
     teta_star = perceptron(total_features, 2, train, 1)
     start_time = datetime.datetime.now().timestamp()
     with open('teta_star {}.pickle'.format(start_time), 'wb') as outputfile:
@@ -222,6 +232,8 @@ def old_train():
     test = sentences[train_test_ratio:]
     set_dicts(sentences)
     total_features = len(words_dict) ** 2 + len(tags_dict) ** 2
+    if bonus:
+        total_features += 4
     filename = input()
     with open(filename, 'rb') as inputfile:
         teta_star = pickle.load(inputfile)
@@ -230,4 +242,4 @@ def old_train():
     print(f"the attachment_score is {score}")
 
 
-old_train()
+new_train()
