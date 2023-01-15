@@ -111,8 +111,24 @@ def transformer_classification(portion=1.):
     # see https://huggingface.co/docs/transformers/v4.25.1/en/quicktour#trainer-a-pytorch-optimized-training-loop
     # Use the DataSet object defined above. No need for a DataCollator
     # for epoch in range(5):
-
-
+    training_args = TrainingArguments(
+        output_dir="",
+        learning_rate=5e-5,
+        per_device_train_batch_size=16,
+        per_device_eval_batch_size=16,
+        num_train_epochs=5,
+    )
+    dataset_train = Dataset(x_train, y_train)
+    dataset_test = Dataset(x_test, y_test)
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=dataset_train,
+        eval_dataset=dataset_test,
+        tokenizer=tokenizer,
+        data_collator=compute_metrics
+    )
+    trainer.train()
     return
 
 
