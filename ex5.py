@@ -58,7 +58,7 @@ def linear_classification(portion=1.):
     # Add your code here
 
     tf_x_train = tf.fit_transform(x_train)
-    tf_x_test = tf.fit_transform(x_test)
+    tf_x_test = tf.transform(x_test)
     lr = LogisticRegression()
     lr.fit(tf_x_train, y_train)
     predictions = lr.predict(tf_x_test)
@@ -137,11 +137,11 @@ def zeroshot_classification(portion=1.):
 
 if __name__ == "__main__":
     portions = [0.1, 0.5, 1.]
-    # Q1
-    print("Logistic regression results:")
-    for p in portions:
-        print(f"Portion: {p}")
-        print(linear_classification(p))
+    # # Q1
+    # print("Logistic regression results:")
+    # for p in portions:
+    #     print(f"Portion: {p}")
+    #     print(linear_classification(p))
 
     # Q2
     print("\nFinetuning results:")
@@ -149,6 +149,6 @@ if __name__ == "__main__":
         print(f"Portion: {p}")
         print(transformer_classification(portion=p))
 
-    # Q3
-    print("\nZero-shot result:")
-    print(zeroshot_classification())
+    # # Q3
+    # print("\nZero-shot result:")
+    # print(zeroshot_classification())
