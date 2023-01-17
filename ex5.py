@@ -1,4 +1,4 @@
-
+import os.path
 
 ###################################################
 # Exercise 5 - Natural Language Processing 67658  #
@@ -111,25 +111,27 @@ def transformer_classification(portion=1.):
     # see https://huggingface.co/docs/transformers/v4.25.1/en/quicktour#trainer-a-pytorch-optimized-training-loop
     # Use the DataSet object defined above. No need for a DataCollator
     # for epoch in range(5):
+    dirname = os.path.dirname(__file__)
     training_args = TrainingArguments(
-        output_dir="",
+        output_dir=dirname,
         learning_rate=5e-5,
         per_device_train_batch_size=16,
         per_device_eval_batch_size=16,
         num_train_epochs=5,
     )
-    dataset_train = Dataset(x_train, y_train)
-    dataset_test = Dataset(x_test, y_test)
+    dataset_train = Dataset(tokenizer(x_train, padding='max_length', truncation=True), y_train)
+    dataset_test = Dataset(tokenizer(x_test, padding='max_length', truncation=True), y_test)
     trainer = Trainer(
         model=model,
         args=training_args,
         train_dataset=dataset_train,
         eval_dataset=dataset_test,
         tokenizer=tokenizer,
-        data_collator=compute_metrics
+        compute_metrics=compute_metrics
     )
     trainer.train()
-    return
+    trainer.save_model()
+    return trainer.evaluate()['eval_accuracy']
 
 
 # Q3
@@ -143,12 +145,17 @@ def zeroshot_classification(portion=1.):
     from sklearn.metrics import accuracy_score
     import torch
     x_train, y_train, x_test, y_test = get_data(categories=category_dict.keys(), portion=portion)
-    clf = pipeline("zero-shot-classification", model='cross-encoder/nli-MiniLM2-L6-H768')
+    clf = pipeline("zero-shot-classification", model='cross-encoder/nli-MiniLM2-L6-H768',
+                   device=torch.device('cuda:0'if torch.cuda.is_available() else 'cpu'))
     candidate_labels = list(category_dict.values())
 
     # Add your code here
     # see https://huggingface.co/docs/transformers/v4.25.1/en/main_classes/pipelines#transformers.ZeroShotClassificationPipeline
-    return
+    predictions_dict = clf(x_test, candidate_labels, multi_calass=False)
+    predictions = []
+    for dict in predictions_dict:
+        predictions.append(dict['solutions'])
+    return accuracy_score(y_test, predictions)
 
 
 if __name__ == "__main__":
@@ -159,12 +166,12 @@ if __name__ == "__main__":
     #     print(f"Portion: {p}")
     #     print(linear_classification(p))
 
-    # Q2
-    print("\nFinetuning results:")
-    for p in portions:
-        print(f"Portion: {p}")
-        print(transformer_classification(portion=p))
+    # # Q2
+    # print("\nFinetuning results:")
+    # for p in portions:
+    #     print(f"Portion: {p}")
+    #     print(transformer_classification(portion=p))
 
-    # # Q3
-    # print("\nZero-shot result:")
-    # print(zeroshot_classification())
+    # Q3
+    print("\nZero-shot result:")
+    print(zeroshot_classification())
