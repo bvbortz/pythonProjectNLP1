@@ -148,13 +148,15 @@ def zeroshot_classification(portion=1.):
     clf = pipeline("zero-shot-classification", model='cross-encoder/nli-MiniLM2-L6-H768',
                    device=torch.device('cuda:0'if torch.cuda.is_available() else 'cpu'))
     candidate_labels = list(category_dict.values())
-
+    candidate_labels_dict = dict()
+    for i in range(len(candidate_labels)):
+        candidate_labels_dict[candidate_labels[i]] = i
     # Add your code here
     # see https://huggingface.co/docs/transformers/v4.25.1/en/main_classes/pipelines#transformers.ZeroShotClassificationPipeline
-    predictions_dict = clf(x_test, candidate_labels, multi_calass=False)
+    predictions_dict = clf(x_test, candidate_labels, multi_class=True)
     predictions = []
-    for dict in predictions_dict:
-        predictions.append(dict['solutions'])
+    for item in predictions_dict:
+        predictions.append(candidate_labels_dict[item["labels"][np.argmax(item['scores'])]])
     return accuracy_score(y_test, predictions)
 
 
